@@ -1,13 +1,12 @@
-interface ValidationError {
+export interface ValidationError {
   target?: object;
   property: string;
   value?: any;
   constraints?: {
-      [type: string]: string;
+    [type: string]: string;
   };
   children?: ValidationError[];
-  contexts?: {
-  };
+  contexts?: {};
 }
 
 export interface UpdateInfoRequest {

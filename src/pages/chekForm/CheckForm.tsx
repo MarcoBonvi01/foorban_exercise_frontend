@@ -16,7 +16,7 @@ import dayjs from "dayjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckFromValues } from "../../forms/check-form";
 import { PickerValue } from "@mui/x-date-pickers/internals";
-import { BaseResponse } from "../../interfaces";
+import { BaseResponse, ValidationError } from "../../interfaces";
 import { SelectableBox } from "./components/selectableBox";
 import { Title } from "./components/title";
 
@@ -29,7 +29,7 @@ export interface CheckFormData {
 
 export function CheckForm() {
   const [currentStep, setCurrentStep] = useState<number>(0);
-  const [data, setData] = useState<{ success: boolean } | null>(null);
+  const [data, setData] = useState<BaseResponse | null>(null);
 
   const {
     register,
@@ -39,21 +39,25 @@ export function CheckForm() {
     reset,
     formState: { errors },
   } = useForm<CheckFormData>({
+    // specify default values
     defaultValues: {
       name: undefined,
       age: undefined,
       is_married: null,
       birth_date: undefined,
     },
-    resolver: zodResolver(CheckFromValues),
-    mode: "onChange",
+    resolver: zodResolver(CheckFromValues), // specify validation handler
+    mode: "onChange", // that indicates when to trigger validation is executed.
+    // onChange means that it will be executed when the input value changes
   });
 
+  // used to retrive the value inserted by the user and used for validate step
   const name = watch("name");
   const age = watch("age");
   const isMarried = watch("is_married");
   const birthDate = watch("birth_date");
 
+  // stuses in which the process could be
   const [status, setStatus] = useState<
     | "INITIAL"
     | "SEND_DATA"
@@ -63,8 +67,12 @@ export function CheckForm() {
   >("INITIAL");
 
   const isLastStep = () => {
+    // verify if current step is the last step
+
+    // if age are less than 18 and current step is 2 return true -> it is not necessary to request if is married
     if (age < 18 && currentStep === 2) return true;
 
+    // if age are less than 18 and current step is 3 return true -> it is necessary to request if is married
     if (age >= 18 && currentStep === 3) return true;
 
     return false;
@@ -72,29 +80,31 @@ export function CheckForm() {
 
   const { mutate: submitForm } = useMutation({
     mutationFn: (values: CheckFormData): Promise<BaseResponse> => {
-      setStatus("SEND_DATA");
+      setStatus("SEND_DATA"); // update current state
 
       return sendForm2(values);
     },
     onSuccess: (response: BaseResponse) => {
-      toast.success("Form submitted successfully!");
+      toast.success("Form submitted successfully!"); // show toast
 
-      setStatus("DATA_SENDED");
+      setStatus("DATA_SENDED"); // update current state
 
-      reset();
+      reset(); // reset values inside the form
 
       setData(response);
     },
     onError: (error: { message: string }) => {
-      console.log(error);
+      console.info(error); // print errors
 
-      toast.error(error.message);
+      toast.error(error.message); // show toast
 
-      setStatus("ERROR_SENDING_DATA");
+      setStatus("ERROR_SENDING_DATA"); // update current state
     },
   });
 
   const isValidStep = () => {
+    // for each step verify that the field is filled and pass the validation
+
     if (currentStep === 0) return name && !errors.name;
 
     if (currentStep === 1) return age && !errors.age;
@@ -103,7 +113,20 @@ export function CheckForm() {
 
     if ((currentStep === 2 && age < 18) || currentStep === 3) return birthDate;
 
-    return true;
+    return false; // return false in any other case
+  };
+
+  const resetForm = () => {
+    reset({
+      name: undefined,
+      age: undefined,
+      is_married: null,
+      birth_date: undefined,
+    });
+
+    setStatus("INITIAL");
+
+    setCurrentStep(0);
   };
 
   return (
@@ -119,15 +142,7 @@ export function CheckForm() {
       {status === "ERROR_SENDING_DATA" && (
         <Stack gap={2}>
           <Typography variant="h3">ERRORE INVIO DATI</Typography>
-          <Button
-            variant="outlined"
-            fullWidth
-            onClick={() => {
-              setCurrentStep(0);
-              reset();
-              setStatus("INITIAL");
-            }}
-          >
+          <Button variant="outlined" fullWidth onClick={resetForm}>
             RIPROVA
           </Button>
         </Stack>
@@ -135,9 +150,9 @@ export function CheckForm() {
 
       {(status === "SEND_DATA" || status === "SENDING_DATA") && (
         <Stack gap={2}>
-          <Typography variant="h3">INVIO IN CORSO</Typography>
+          <Typography variant="h3">SENDING DATA</Typography>
 
-          <Button onClick={() => setStatus("INITIAL")}>ANNULLA</Button>
+          <Button onClick={resetForm}>UNDO</Button>
         </Stack>
       )}
 
@@ -148,16 +163,22 @@ export function CheckForm() {
             {data?.success === false && "DATI INVIATI NON VALIDI"}
           </Typography>
 
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => {
-              setCurrentStep(0);
-              reset();
-              setStatus("INITIAL");
-            }}
-          >
-            INVIA UN ALTRO FORM
+          {data?.success === false && (
+            <Box>
+              {data.errors.map(
+                (error: ValidationError, index) =>
+                  error.constraints &&
+                  Object.values(error.constraints).map((msg, index_2) => (
+                    <Typography key={`${index}-${index_2}`} color="error">
+                      {msg}
+                    </Typography>
+                  ))
+              )}
+            </Box>
+          )}
+
+          <Button fullWidth variant="outlined" onClick={resetForm}>
+            SEND OTHER DATA
           </Button>
         </Stack>
       )}
@@ -173,11 +194,11 @@ export function CheckForm() {
           <Stack gap={2}>
             {currentStep === 0 && (
               <>
-                <Title text="Qual'è il tuo nome?" />
+                <Title text="What's your name?" />
 
                 <OutlinedInput
                   fullWidth
-                  placeholder="Inserisci qui il tuo nome.."
+                  placeholder="Insert here your name.."
                   {...register("name")}
                   error={!!errors.name}
                 />
@@ -192,7 +213,7 @@ export function CheckForm() {
 
             {currentStep === 1 && (
               <>
-                <Title text="Quanti anni hai?" />
+                <Title text="How old are you?" />
 
                 <OutlinedInput
                   type="number"
@@ -214,11 +235,11 @@ export function CheckForm() {
 
             {currentStep === 2 && age >= 18 && (
               <>
-                <Title text="Sei sposato?" />
+                <Title text="Are you married?" />
 
                 <Stack direction={"row"} spacing={2} alignItems="center">
                   <SelectableBox
-                    label="Si"
+                    label="Yes"
                     isActive={isMarried === true}
                     onClick={() => setValue("is_married", true)}
                   />
@@ -234,7 +255,7 @@ export function CheckForm() {
 
             {((currentStep === 2 && age < 18) || currentStep === 3) && (
               <>
-                <Title text="Quando sei nato?" />
+                <Title text="When were you born?" />
 
                 <DatePicker
                   value={birthDate ? dayjs(birthDate) : null}
@@ -259,7 +280,7 @@ export function CheckForm() {
                   }}
                   type="button"
                 >
-                  Indietro
+                  Back
                 </Button>
               )}
 
@@ -272,7 +293,7 @@ export function CheckForm() {
                   sx={{ p: 1.5, flex: 1 }}
                   type="submit"
                 >
-                  Invia
+                  Send
                 </Button>
               ) : (
                 <Button
@@ -284,7 +305,7 @@ export function CheckForm() {
                   sx={{ p: 1.5, flex: 1 }}
                   type="button"
                 >
-                  Avanti
+                  Next
                 </Button>
               )}
             </Stack>
