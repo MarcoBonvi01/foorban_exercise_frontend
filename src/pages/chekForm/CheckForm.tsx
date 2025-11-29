@@ -3,14 +3,7 @@ import { useMutation } from "react-query";
 import { sendForm2 } from "../../apis/form2";
 import { toast } from "react-toastify";
 import { useForm } from "react-hook-form";
-import {
-  Box,
-  Button,
-  OutlinedInput,
-  Paper,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Button, OutlinedInput, Paper, Stack, Typography } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +12,8 @@ import { PickerValue } from "@mui/x-date-pickers/internals";
 import { BaseResponse, ValidationError } from "../../interfaces";
 import { SelectableBox } from "./components/selectableBox";
 import { Title } from "./components/title";
+import { ValidationErrorsBox } from "./components/validationErrorsBox";
+import { ValidationSuccessBox } from "./components/validationSuccessBox";
 
 export interface CheckFormData {
   name: string;
@@ -141,9 +136,16 @@ export function CheckForm() {
     >
       {status === "ERROR_SENDING_DATA" && (
         <Stack gap={2}>
-          <Typography variant="h3">ERRORE INVIO DATI</Typography>
-          <Button variant="outlined" fullWidth onClick={resetForm}>
-            RIPROVA
+          <Typography variant="h3">ERROR WHILE SENDING DATA</Typography>
+          <Button
+            variant="outlined"
+            fullWidth
+            onClick={handleSubmit((values) => {
+              setStatus("SENDING_DATA");
+              submitForm(values);
+            })}
+          >
+            RETRY
           </Button>
         </Stack>
       )}
@@ -158,28 +160,20 @@ export function CheckForm() {
 
       {status === "DATA_SENDED" && (
         <Stack gap={2}>
-          <Typography variant="h3">
-            {data?.success === true && "DATI INVIATI VALIDI"}
-            {data?.success === false && "DATI INVIATI NON VALIDI"}
-          </Typography>
-
           {data?.success === false && (
-            <Box>
-              {data.errors.map(
-                (error: ValidationError, index) =>
-                  error.constraints &&
-                  Object.values(error.constraints).map((msg, index_2) => (
-                    <Typography key={`${index}-${index_2}`} color="error">
-                      {msg}
-                    </Typography>
-                  ))
-              )}
-            </Box>
+            <ValidationErrorsBox
+              errors={data.errors
+                .map((error: ValidationError) =>
+                  error.constraints ? Object.values(error.constraints) : []
+                )
+                .flat()}
+              createNew={resetForm}
+            />
           )}
 
-          <Button fullWidth variant="outlined" onClick={resetForm}>
-            SEND OTHER DATA
-          </Button>
+          {data?.success === true && (
+            <ValidationSuccessBox createNew={resetForm} />
+          )}
         </Stack>
       )}
 
